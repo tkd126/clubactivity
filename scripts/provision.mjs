@@ -1,4 +1,5 @@
 import {newPassword} from '../lib/password.mjs';
+import {supabaseHeaders} from '../lib/supabase.mjs';
 import {writeFile,appendFile} from 'node:fs/promises';
 import {csv} from '../lib/domain.mjs';
 const {SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,TEACHER_PASSWORD}=process.env;
@@ -7,7 +8,7 @@ if(!SUPABASE_URL||!SUPABASE_SERVICE_ROLE_KEY||!TEACHER_PASSWORD||TEACHER_PASSWOR
 const base=SUPABASE_URL.replace(/\/$/,'');
 const domain=process.env.CLUB_LOGIN_DOMAIN||'club.example';
 async function request(path,method='GET',body){
- const response=await fetch(base+path,{method,headers:{apikey:SUPABASE_SERVICE_ROLE_KEY,Authorization:'Bearer '+SUPABASE_SERVICE_ROLE_KEY,'Content-Type':'application/json',Prefer:'resolution=merge-duplicates'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(20000)});
+ const response=await fetch(base+path,{method,headers:{...supabaseHeaders(SUPABASE_SERVICE_ROLE_KEY,SUPABASE_SERVICE_ROLE_KEY),'Content-Type':'application/json',Prefer:'resolution=merge-duplicates'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(20000)});
  const data=await response.json().catch(()=>null);
  if(!response.ok)throw Error('계정 설정 실패 (HTTP '+response.status+'). Supabase URL/키 및 schema.sql 실행 여부를 확인하세요.');
  return data;

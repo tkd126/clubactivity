@@ -19,7 +19,7 @@
 1. [Supabase](https://supabase.com/)에서 새 프로젝트를 만듭니다.
 2. SQL Editor에서 [supabase/schema.sql](supabase/schema.sql) 전체를 실행합니다.
 3. Authentication 설정에서 **새 사용자 회원가입(Allow new users to sign up)**을 끕니다. 학생 계정은 아래 도구가 관리자 권한으로 만듭니다.
-4. 프로젝트 설정의 API 항목에서 Project URL, **anon 키**, **service_role 키**를 확인합니다. 이 소스는 기존 JWT 형식 anon/service_role 키를 사용합니다.
+4. 프로젝트 설정의 API Keys에서 Project URL, **Publishable key**, **Secret key**를 확인합니다. 새 키 방식과 기존 JWT 형식 anon/service_role 키를 모두 지원합니다.
 5. 비밀번호 인증에 MFA를 추가하지 않은 전용 프로젝트로 설정합니다. 메일 확인 없이 관리자 도구로 미리 생성한 계정을 이용합니다.
 
 학생용 내부 로그인 주소는 student01@club.example ~ student27@club.example, 교사용 주소는 teacher@club.example입니다. 메일을 보내지 않으며, 학생은 이 주소를 알거나 입력할 필요가 없습니다.
@@ -37,8 +37,8 @@ Copy-Item .env.example .env.local
 | 변수 | 내용 |
 | --- | --- |
 | SUPABASE_URL | Supabase Project URL |
-| SUPABASE_ANON_KEY | anon 키 |
-| SUPABASE_SERVICE_ROLE_KEY | service_role 관리자 키 |
+| SUPABASE_ANON_KEY | Publishable key (기존 anon 키도 지원) |
+| SUPABASE_SERVICE_ROLE_KEY | Secret key (기존 service_role 키도 지원) |
 | CLUB_LOGIN_DOMAIN | club.example 그대로 사용 가능 |
 | TEACHER_PASSWORD | 교사용 고유 비밀번호, 12자 이상 |
 

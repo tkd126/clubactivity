@@ -3,4 +3,5 @@
 node_modules/
 .vercel/
 student-credentials*.csv
+teacher-credentials*
 coverage/
