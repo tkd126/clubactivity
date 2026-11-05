@@ -1,0 +1,1 @@
+{"name":"club-records","version":"1.0.0","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"test":"node --test","dev":"node scripts/dev.mjs","provision":"node --env-file=.env.local scripts/provision.mjs"}}

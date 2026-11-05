@@ -1,0 +1,24 @@
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: node --test
+      - name: Check application syntax
+        run: |
+          node --check public/app.js
+          node --check public/domain.js
+          node --check lib/server.mjs
+          node --check api/index.js
