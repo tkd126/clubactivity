@@ -2,7 +2,7 @@ import {validateRecord,csv,aiText,exportRows,recordCsv} from './domain.js';
 const $=selector=>document.querySelector(selector);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-const state={role:'student',profile:null,records:[],students:[],notes:[],remarks:[],view:'overview',date:today(),period:'all',status:'all',number:'all',editorDate:today(),editorPeriod:1,dirty:new Set(),saving:false};
+const state={role:'student',profile:null,records:[],students:[],notes:[],remarks:[],view:'overview',date:today(),period:'all',status:'all',number:'all',editorRecordId:null,editorDate:today(),editorPeriod:1,dirty:new Set(),saving:false};
 let session=null,refreshing=null,toastTimer;
 try{session=JSON.parse(sessionStorage.getItem('chagok-session')||'null');}catch{sessionStorage.removeItem('chagok-session');}
 function setSession(value){session=value;if(value)sessionStorage.setItem('chagok-session',JSON.stringify(value));else sessionStorage.removeItem('chagok-session');}
@@ -53,6 +53,7 @@ async function loadData(){
 }
 async function loadWorkspace(){
  state.profile=await api('me');await loadData();
+ state.editorRecordId=null;state.editorDate=today();state.editorPeriod=1;
  state.dirty.clear();$('#login-screen').hidden=true;$('#workspace').hidden=false;
  $('#account-name').textContent=state.profile.role==='teacher'?'교사 계정':state.profile.student_number+'번 학생';
  $('#main-nav').innerHTML=state.profile.role==='teacher'?'<button data-view="overview">활동 기록</button><button data-view="remarks">학생부 자료</button>':'<button class="active">나의 활동 기록</button>';
@@ -83,30 +84,39 @@ function render(){
  if(state.profile.role==='student')renderStudent();else if(state.view==='remarks')renderRemarks();else renderTeacher();
 }
 function heading(eyebrow,title,description,actions=''){return '<div class="page-heading"><div><h1>'+title+'</h1>'+(description?'<p>'+description+'</p>':'')+'</div>'+(actions?'<div class="heading-actions">'+actions+'</div>':'')+'</div>';}
-function studentCurrent(){return state.records.find(r=>r.date===state.editorDate&&r.period===state.editorPeriod);}
 function renderStudent(){
- const current=studentCurrent();
+ const current=state.records.find(r=>r.id===state.editorRecordId);
  const ordered=[...state.records].sort((a,b)=>b.date.localeCompare(a.date)||b.period-a.period);
  $('#main-content').innerHTML=heading('', '활동 기록하기','날짜와 차시를 고르고, 어떤 활동을 했는지 적어 주세요.')+
- '<div class="student-layout"><section class="panel"><div class="panel-title"><h2>'+state.profile.student_number+'번 학생</h2><span class="badge '+(current?'done':'wait')+'">'+(current?'저장된 기록':'미작성')+'</span></div>'+
+ '<div class="student-layout"><section class="panel"><div class="panel-title"><h2>'+state.profile.student_number+'번 학생 · '+(current?'기록 수정':'새 기록')+'</h2>'+(current?'<button class="text-button" id="new-record" type="button">새 기록 쓰기</button>':'')+'</div>'+
  '<form id="record-form" class="editor"><div class="editor-date"><label>활동 날짜<input id="record-date" type="date" value="'+state.editorDate+'" required></label><label>활동 차시<select id="record-period"><option value="1"'+(state.editorPeriod===1?' selected':'')+'>1차시</option><option value="2"'+(state.editorPeriod===2?' selected':'')+'>2차시</option></select></label></div>'+
  '<div class="editor-section"><label for="activity">어떤 활동을 했나요?</label><textarea id="activity" maxlength="2000" required placeholder="오늘 한 동아리 활동을 적어 주세요.">'+esc(current?.activity||'')+'</textarea><div class="counter" id="activity-count">'+(current?.activity?.length||0)+' / 2,000</div></div>'+
- '<div class="editor-footer"><span class="muted" id="save-status">'+(current?'수정 후 다시 저장할 수 있어요.':'나와 선생님만 볼 수 있어요.')+'</span><button class="primary" type="submit">저장하기</button></div></form></section>'+
- '<aside class="panel history-panel"><div class="panel-title"><h2>내가 쓴 기록</h2><span class="muted">'+ordered.length+'건</span></div><div class="history-list">'+(ordered.length?ordered.map(r=>'<button class="history-item '+(r===current?'active':'')+'" data-date="'+r.date+'" data-period="'+r.period+'"><div class="date">'+r.date+' · '+r.period+'차시</div><div class="preview">'+esc(r.activity)+'</div></button>').join(''):'<div class="empty">아직 작성한 기록이 없어요.</div>')+'</div></aside></div>';
- $('#activity').oninput=()=>{state.dirty.add('record');$('#activity-count').textContent=$('#activity').value.length+' / 2,000';$('#save-status').textContent='아직 저장하지 않았어요.';};
- $('#record-date').onchange=event=>{
-  if(!event.target.value||!canLeave()){event.target.value=state.editorDate;return;}
-  state.editorDate=event.target.value;state.dirty.clear();renderStudent();
- };
- $('#record-period').onchange=event=>{
-  if(!canLeave()){event.target.value=String(state.editorPeriod);return;}state.editorPeriod=Number(event.target.value);state.dirty.clear();renderStudent();
- };
- document.querySelectorAll('.history-item').forEach(button=>button.onclick=()=>{if(!canLeave())return;state.editorDate=button.dataset.date;state.editorPeriod=Number(button.dataset.period);state.dirty.clear();renderStudent();});
+ '<div class="editor-footer"><span class="muted" id="save-status">'+(current?'날짜, 차시, 활동 내용을 바꿀 수 있어요.':'나와 선생님만 볼 수 있어요.')+'</span><button class="primary" type="submit">'+(current?'수정 저장':'저장하기')+'</button></div></form></section>'+
+ '<aside class="panel history-panel"><div class="panel-title"><h2>내가 쓴 기록</h2><span class="muted">'+ordered.length+'건</span></div><div class="history-list">'+(ordered.length?ordered.map(r=>'<button class="history-item '+(r===current?'active':'')+'" data-id="'+esc(r.id)+'"><div class="date">'+r.date+' · '+r.period+'차시 · 수정</div><div class="preview">'+esc(r.activity)+'</div></button>').join(''):'<div class="empty">아직 작성한 기록이 없어요.</div>')+'</div></aside></div>';
+ const markDirty=()=>{state.dirty.add('record');$('#save-status').textContent='아직 저장하지 않았어요.';};
+ $('#activity').oninput=()=>{markDirty();$('#activity-count').textContent=$('#activity').value.length+' / 2,000';};
+ $('#record-date').oninput=markDirty;
+ $('#record-period').onchange=markDirty;
+ function openRecord(record){
+  if(!canLeave())return;
+  state.editorRecordId=record?.id??null;
+  state.editorDate=record?.date??today();
+  state.editorPeriod=record?.period??1;
+  state.dirty.clear();renderStudent();
+ }
+ if(current)$('#new-record').onclick=()=>openRecord(null);
+ document.querySelectorAll('.history-item').forEach(button=>button.onclick=()=>openRecord(state.records.find(r=>r.id===button.dataset.id)));
  $('#record-form').onsubmit=async event=>{
   event.preventDefault();
-  const payload={date:state.editorDate,period:state.editorPeriod,activity:$('#activity').value};
+  const payload={date:$('#record-date').value,period:Number($('#record-period').value),activity:$('#activity').value};
   const checked=validateRecord(payload);if(!checked.ok){toast(checked.error,true);return;}
-  await saving(async()=>{const result=await api('records',{method:'POST',body:payload});state.records=state.records.filter(r=>!(r.date===payload.date&&r.period===payload.period));state.records.push(result.record);state.dirty.clear();renderStudent();toast('저장했어요.');});
+  await saving(async()=>{
+   const {record}=await api('records',{method:'POST',body:{...payload,...(current?{record_id:current.id}:{create_only:true})}});
+   state.records=state.records.filter(r=>r.id!==record.id);
+   state.records.push(record);
+   state.dirty.clear();openRecord(record);
+   toast(current?'수정했어요.':'저장했어요.');
+  });
  };
 }
 function filteredRecords(){return state.records.filter(r=>(!state.date||r.date===state.date)&&(state.period==='all'||r.period===Number(state.period))&&(state.number==='all'||r.student_number===Number(state.number)));}

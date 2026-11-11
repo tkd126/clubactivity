@@ -20,9 +20,18 @@ async function fakeFetch(input,options={}){
  if(url.pathname==='/auth/v1/user')return reply({id});
  if(url.pathname==='/auth/v1/logout')return reply({});
  const table=url.pathname.split('/').pop();let data=tables[table];if(!data)return reply({},404);
+ const duplicate=()=>reply({code:'23505'},409);
+ if(table==='records'&&options.method==='PATCH'){
+  const index=data.findIndex(row=>row.student_id===id&&url.searchParams.get('id')==='eq.'+row.id);
+  if(index<0)return reply([]);
+  if(data.some((row,i)=>i!==index&&row.student_id===id&&row.date===body.date&&row.period===body.period))return duplicate();
+  data[index]={...data[index],...body,updated_at:new Date().toISOString()};
+  return reply([data[index]]);
+ }
  if(options.method==='POST'){
   const conflict=url.searchParams.get('on_conflict')?.split(',')||[];
-  const index=data.findIndex(row=>conflict.every(key=>row[key]===body[key]));
+  const index=conflict.length?data.findIndex(row=>conflict.every(key=>row[key]===body[key])):-1;
+  if(table==='records'&&!conflict.length&&data.some(row=>row.student_id===id&&row.date===body.date&&row.period===body.period))return duplicate();
   const row={...(index>=0?data[index]:{id:crypto.randomUUID()}),...body,updated_at:new Date().toISOString()};
   if(index>=0)data[index]=row;else data.push(row);return reply([row]);
  }

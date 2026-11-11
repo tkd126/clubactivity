@@ -23,6 +23,38 @@ test('API ignores forged student number when saving a record',async()=>{
  const res=await request('records','POST',{date:'2026-11-05',period:1,activity:'만들기',student_number:2},'token',remote);
  assert.equal(res.statusCode,200); assert.equal(saved.student_number,1);assert.equal(saved.student_id,'student-id');
 });
+test('moving a record updates it in place and rejects occupied slots or unowned records',async()=>{
+ const id='12345678-1234-1234-1234-123456789abc';
+ const payload={date:'2026-11-06',period:2,activity:'만들기'};
+ const body={...payload,record_id:id,student_id:'other',student_number:2};
+ for(const [dbStatus,dbBody,expected] of [[200,[{id,...payload}],200],[409,{code:'23505'},409],[200,[],404]]){
+  let calls=0;
+  const remote=async(url,options)=>{
+   if(!url.includes('/rest/v1/records'))return userFetch(url);
+   calls++;
+   assert.equal(url,'https://db.example/rest/v1/records?id=eq.'+id+'&student_id=eq.student-id');
+   assert.equal(options.method,'PATCH');
+   assert.equal(options.headers.Authorization,'Bearer token');
+   assert.deepEqual(JSON.parse(options.body),payload);
+   return new Response(JSON.stringify(dbBody),{status:dbStatus});
+  };
+  const res=await request('records','POST',body,'token',remote);
+  assert.equal(res.statusCode,expected);
+  assert.equal(calls,1);
+  if(expected===200)assert.deepEqual(res.data.record,{id,...payload});
+  if(expected===409)assert.match(res.data.error,/이미 기록/);
+ }
+});
+test('creating a new record rejects an occupied slot without upserting',async()=>{
+ const remote=async(url,options)=>{
+  if(!url.includes('/rest/v1/records'))return userFetch(url);
+  assert.equal(options.method,'POST');
+  assert.equal(options.headers.Prefer,'return=representation');
+  return new Response(JSON.stringify({code:'23505'}),{status:409});
+ };
+ const res=await request('records','POST',{date:'2026-11-06',period:2,activity:'만들기',create_only:true},'token',remote);
+ assert.equal(res.statusCode,409);
+});
 test('API reports missing database configuration without leaking secrets',async()=>{
  const handler=createHandler({});
  const res={setHeader(){},status(n){this.statusCode=n;return this;},json(v){this.data=v;}};
