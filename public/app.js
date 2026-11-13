@@ -91,7 +91,7 @@ function renderStudent(){
  '<div class="student-layout"><section class="panel"><div class="panel-title"><h2>'+state.profile.student_number+'번 학생 · '+(current?'기록 수정':'새 기록')+'</h2>'+(current?'<button class="text-button" id="new-record" type="button">새 기록 쓰기</button>':'')+'</div>'+
  '<form id="record-form" class="editor"><div class="editor-date"><label>활동 날짜<input id="record-date" type="date" value="'+state.editorDate+'" required></label><label>활동 차시<select id="record-period"><option value="1"'+(state.editorPeriod===1?' selected':'')+'>1차시</option><option value="2"'+(state.editorPeriod===2?' selected':'')+'>2차시</option></select></label></div>'+
  '<div class="editor-section"><label for="activity">어떤 활동을 했나요?</label><textarea id="activity" maxlength="2000" required placeholder="오늘 한 동아리 활동을 적어 주세요.">'+esc(current?.activity||'')+'</textarea><div class="counter" id="activity-count">'+(current?.activity?.length||0)+' / 2,000</div></div>'+
- '<div class="editor-footer"><span class="muted" id="save-status">'+(current?'날짜, 차시, 활동 내용을 바꿀 수 있어요.':'나와 선생님만 볼 수 있어요.')+'</span><button class="primary" type="submit">'+(current?'수정 저장':'저장하기')+'</button></div></form></section>'+
+ '<div class="editor-footer"><span class="muted" id="save-status">'+(current?'날짜, 차시, 활동 내용을 바꿀 수 있어요.':'나와 선생님만 볼 수 있어요.')+'</span><div class="record-actions">'+(current?'<button class="text-button" id="delete-record" type="button">기록 삭제</button>':'')+'<button class="primary" type="submit">'+(current?'수정 저장':'저장하기')+'</button></div></div></form></section>'+
  '<aside class="panel history-panel"><div class="panel-title"><h2>내가 쓴 기록</h2><span class="muted">'+ordered.length+'건</span></div><div class="history-list">'+(ordered.length?ordered.map(r=>'<button class="history-item '+(r===current?'active':'')+'" data-id="'+esc(r.id)+'"><div class="date">'+r.date+' · '+r.period+'차시 · 수정</div><div class="preview">'+esc(r.activity)+'</div></button>').join(''):'<div class="empty">아직 작성한 기록이 없어요.</div>')+'</div></aside></div>';
  const markDirty=()=>{state.dirty.add('record');$('#save-status').textContent='아직 저장하지 않았어요.';};
  $('#activity').oninput=()=>{markDirty();$('#activity-count').textContent=$('#activity').value.length+' / 2,000';};
@@ -104,7 +104,18 @@ function renderStudent(){
   state.editorPeriod=record?.period??1;
   state.dirty.clear();renderStudent();
  }
- if(current)$('#new-record').onclick=()=>openRecord(null);
+ if(current){
+  $('#new-record').onclick=()=>openRecord(null);
+  $('#delete-record').onclick=async()=>{
+   if(!confirm(current.date+' · '+current.period+'차시 기록을 삭제할까요? 삭제한 기록은 되돌릴 수 없어요.'))return;
+   await saving(async()=>{
+    await api('delete-record',{method:'POST',body:{record_id:current.id}});
+    state.records=state.records.filter(r=>r.id!==current.id);
+    state.dirty.clear();openRecord(null);
+    toast('기록을 삭제했어요.');
+   });
+  };
+ }
  document.querySelectorAll('.history-item').forEach(button=>button.onclick=()=>openRecord(state.records.find(r=>r.id===button.dataset.id)));
  $('#record-form').onsubmit=async event=>{
   event.preventDefault();

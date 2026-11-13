@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createHandler} from '../lib/server.mjs';
 const env={SUPABASE_URL:'https://db.example',SUPABASE_ANON_KEY:'public-key'};
 async function request(route,method='GET',body,token,remote=async()=>{throw Error('unexpected fetch');}){
- const handler=createHandler(env,remote);
+ const handler=createHandler({...env,SUPABASE_SERVICE_ROLE_KEY:'sb_secret_fixture'},remote);
  const res={headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.statusCode=n;return this;},json(value){this.data=value;return this;}};
  await handler({method,url:'/api/'+route,headers:{...(token?{authorization:'Bearer '+token}:{}),host:'localhost'},body},res);
  return res;
@@ -54,6 +54,24 @@ test('creating a new record rejects an occupied slot without upserting',async()=
  };
  const res=await request('records','POST',{date:'2026-11-06',period:2,activity:'만들기',create_only:true},'token',remote);
  assert.equal(res.statusCode,409);
+});
+test('deleting a record is scoped to the authenticated student and validates the record ID',async()=>{
+ const id='12345678-1234-1234-1234-123456789abc';
+ let deletes=0;
+ const remote=async(url,options)=>{
+  if(!url.includes('/rest/v1/records'))return userFetch(url);
+  deletes++;
+  assert.equal(options.method,'DELETE');
+  assert.equal(options.headers.apikey,'sb_secret_fixture');
+  assert.equal(url,'https://db.example/rest/v1/records?id=eq.'+id+'&student_id=eq.student-id');
+  return new Response(null,{status:204});
+ };
+ assert.equal((await request('delete-record','POST',{record_id:id},undefined,remote)).statusCode,401);
+ assert.equal((await request('delete-record','POST',{record_id:'invalid'},'token',remote)).statusCode,400);
+ assert.equal(deletes,0);
+ const res=await request('delete-record','POST',{record_id:id,student_id:'other'},'token',remote);
+ assert.equal(res.statusCode,200);
+ assert.equal(deletes,1);
 });
 test('API reports missing database configuration without leaking secrets',async()=>{
  const handler=createHandler({});

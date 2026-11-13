@@ -15,6 +15,11 @@ async function fakeFetch(input,options={}){
   const id=body.refresh_token?.replace('fixture-','')||(body.email.startsWith('teacher@')?'teacher':'student'+Number(body.email.match(/student(\d+)/)?.[1]));
   return reply({access_token:'fixture-'+id,refresh_token:'fixture-'+id});
  }
+ if(url.pathname==='/rest/v1/records'&&options.method==='DELETE'&&options.headers?.apikey==='fake-service-key'){
+  const index=records.findIndex(row=>url.searchParams.get('id')==='eq.'+row.id&&url.searchParams.get('student_id')==='eq.'+row.student_id);
+  if(index>=0)records.splice(index,1);
+  return new Response(null,{status:204});
+ }
  const id=token?.replace('fixture-',''),profile=profiles.find(p=>p.id===id);
  if(!profile)return reply({},401);
  if(url.pathname==='/auth/v1/user')return reply({id});
@@ -44,7 +49,7 @@ async function fakeFetch(input,options={}){
  const offset=Number(url.searchParams.get('offset')||0),limit=Number(url.searchParams.get('limit')||1000);
  return reply(data.slice(offset,offset+limit));
 }
-const handler=createHandler({SUPABASE_URL:'https://fixture.invalid',SUPABASE_ANON_KEY:'fake-public-key'},fakeFetch);
+const handler=createHandler({SUPABASE_URL:'https://fixture.invalid',SUPABASE_ANON_KEY:'fake-public-key',SUPABASE_SERVICE_ROLE_KEY:'fake-service-key'},fakeFetch);
 const root=resolve('public');
 http.createServer(async(req,res)=>{
  res.status=n=>{res.statusCode=n;return res;};res.json=data=>{res.setHeader('Content-Type','application/json; charset=utf-8');res.end(JSON.stringify(data));};
